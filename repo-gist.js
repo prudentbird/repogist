@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Repo Gist
 // @namespace    https://github.com/prudentbird
-// @version      0.0.1
+// @version      0.0.3
 // @description  Provides GitHub repositories as additional context.
 // @author       Prudent Bird
 // @match        https://t3.chat/*
@@ -13,7 +13,8 @@
 // @grant        GM_xmlhttpRequest
 // @grant        GM_registerMenuCommand
 // @run-at       document-idle
-// @connect      https://generativelanguage.googleapis.com
+
+// @connect      *
 // @license      MIT
 // ==/UserScript==
 
@@ -33,6 +34,40 @@
     DEBUG: "debug",
     API_URL: "apiUrl",
     GEMINI_API_KEY: "geminiApiKey",
+  };
+
+  // Utility function to handle GM_getValue safely
+  const safeGMGetValue = (key, defaultValue = null) => {
+    try {
+      const result = GM_getValue(key, defaultValue);
+      // Check if it's a promise
+      if (result && typeof result.then === 'function') {
+        return result;
+      } else {
+        // Return a resolved promise for consistency
+        return Promise.resolve(result);
+      }
+    } catch (error) {
+      Logger.error(`Error getting GM value for ${key}:`, error);
+      return Promise.resolve(defaultValue);
+    }
+  };
+
+  // Utility function to handle GM_setValue safely
+  const safeGMSetValue = (key, value) => {
+    try {
+      const result = GM_setValue(key, value);
+      // Check if it's a promise
+      if (result && typeof result.then === 'function') {
+        return result;
+      } else {
+        // Return a resolved promise for consistency
+        return Promise.resolve(result);
+      }
+    } catch (error) {
+      Logger.error(`Error setting GM value for ${key}:`, error);
+      return Promise.reject(error);
+    }
   };
 
   // --- Utility: Logger ---
@@ -169,11 +204,11 @@
         }
 
         if (url) {
-          GM_setValue(GM_STORAGE_KEYS.API_URL, url)
+          safeGMSetValue(GM_STORAGE_KEYS.API_URL, url)
             .then(() => {
               apiUrl = url;
               if (geminiKey) {
-                return GM_setValue(GM_STORAGE_KEYS.GEMINI_API_KEY, geminiKey);
+                return safeGMSetValue(GM_STORAGE_KEYS.GEMINI_API_KEY, geminiKey);
               }
             })
             .then(() => {
@@ -233,6 +268,7 @@
     return null;
   };
 
+  // Updated selector to match the exact HTML structure provided
   const selectors = {
     messageActions: "div.ml-\\[-7px\\].flex.items-center.gap-1",
     searchButton: 'button#search-toggle[aria-label="Enable search"]',
@@ -264,8 +300,9 @@
   };
 
   const CSS_CLASSES = {
+    // Updated button classes to match the attach button style exactly
     button:
-      "inline-flex items-center justify-center whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 disabled:cursor-not-allowed hover:bg-muted/40 hover:text-foreground disabled:hover:bg-transparent disabled:hover:text-foreground/50 px-3 text-xs -mb-1.5 h-auto gap-2 rounded-full border border-solid border-secondary-foreground/10 py-1.5 pl-2 pr-2.5 text-muted-foreground",
+      "inline-flex items-center justify-center whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 disabled:cursor-not-allowed hover:bg-muted/40 hover:text-foreground disabled:hover:bg-transparent disabled:hover:text-foreground/50 text-xs cursor-pointer -mb-1.5 h-auto gap-2 rounded-full border border-solid border-secondary-foreground/10 px-2 py-1.5 pr-2.5 text-muted-foreground max-sm:p-2",
     importButtonLoading: "loading",
     importButtonOn: "on",
   };
@@ -282,7 +319,7 @@
       #${UI_IDS.importButton}.${CSS_CLASSES.importButtonOn}::before { transform: scaleX(1); }
       #${UI_IDS.importButton} svg { transition: transform 0.3s ease; }
       #${UI_IDS.importButton}.${CSS_CLASSES.importButtonOn} svg { transform: rotate(360deg); }
-      
+
       /* Loading state */
       #${UI_IDS.importButton}.${CSS_CLASSES.importButtonLoading} { opacity: 0.6; position: relative; }
       #${UI_IDS.importButton}.${CSS_CLASSES.importButtonLoading}::after { content: ''; position: absolute; top:50%; left:50%; width:12px; height:12px; margin:-6px 0 0 -6px; border:2px solid currentColor; border-radius:50%; border-top-color:transparent; animation:spin 1s linear infinite; }
@@ -537,37 +574,38 @@
         IngestDBManager.getState(chatId)
           .then((state) => {
             const button = document.createElement("button");
+            button.type = "button";
+            button.id = UI_IDS.importButton;
+            button.className = CSS_CLASSES.button;
+            button.setAttribute("data-state", "closed");
+
             if (state && state.repoUrl) {
-              button.innerHTML = `${githubSVG} ${getRepoNamefromURL(
-                state.repoUrl
-              )
-                .split("/")
-                .pop()
-                .slice(0, 10)
-                .replace(/^./, (c) => c.toUpperCase())}`;
-              button.id = UI_IDS.importButton;
-              button.type = "button";
-              button.setAttribute("aria-label", "Disable import");
-              button.setAttribute("data-state", "open");
-              button.className = CSS_CLASSES.button;
+              const repoName = getRepoNamefromURL(state.repoUrl)
+                ?.split("/")
+                ?.pop()
+                ?.slice(0, 10)
+                ?.replace(/^./, (c) => c.toUpperCase()) || "Repo";
+
+              button.innerHTML = `<div class="flex gap-1">${githubSVG}<span class="max-sm:hidden sm:ml-0.5">${repoName}</span></div>`;
+              button.setAttribute("aria-label", "Repository imported");
               button.dataset.mode = "on";
-              button.classList.toggle(CSS_CLASSES.importButtonOn);
+              button.classList.add(CSS_CLASSES.importButtonOn);
             } else {
-              button.innerHTML = `${githubSVG} Import Repo`;
-              button.id = UI_IDS.importButton;
-              button.type = "button";
-              button.setAttribute("aria-label", "Enable import");
-              button.setAttribute("data-state", "closed");
-              button.className = CSS_CLASSES.button;
+              button.innerHTML = `<div class="flex gap-1">${githubSVG}<span class="max-sm:hidden sm:ml-0.5">Import</span></div>`;
+              button.setAttribute("aria-label", "Import repository");
               button.dataset.mode = "off";
             }
 
-            button.addEventListener("click", () => {
+            button.addEventListener("click", (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+
               if (!apiUrl || !geminiApiKey) {
                 ApiKeyModal.show();
                 return;
               }
 
+              const chatId = getChatId();
               if (!chatId) {
                 alert("No chat ID found, can't import repo");
                 Logger.log("No chat ID found, skipping import button click");
@@ -591,30 +629,35 @@
     },
     injectImportButton: () => {
       return new Promise((resolve) => {
-        const messageActions = document.querySelectorAll(
-          selectors.messageActions
-        );
+        // Find the exact container with model selector, thinking level, and attach buttons
+        const messageActionsContainer = document.querySelector(selectors.messageActions);
 
-        if (!messageActions || messageActions.length === 0) {
-          Logger.error("Message Actions not found.");
+        if (!messageActionsContainer) {
+          Logger.log("Message actions container not found with selector:", selectors.messageActions);
           resolve(false);
+          return;
+        }
+
+        // Check if button already exists
+        if (messageActionsContainer.querySelector(`#${UI_IDS.importButton}`)) {
+          Logger.log("Import button already exists");
+          resolve(true);
           return;
         }
 
         UIManager._createImportButton()
           .then((button) => {
-            UIManager.importButton = button;
             if (!button) {
-              Logger.error("Import button not found.");
+              Logger.error("Import button creation failed.");
               resolve(false);
               return;
             }
 
-            messageActions.forEach((container) => {
-              if (!container.querySelector(`#${UI_IDS.importButton}`)) {
-                container.appendChild(button);
-              }
-            });
+            UIManager.importButton = button;
+
+            // Insert the button as the last child (after attach button)
+            messageActionsContainer.appendChild(button);
+            Logger.log("Import button injected successfully in message actions container");
             resolve(true);
           })
           .catch((err) => {
@@ -706,9 +749,8 @@
             const importButton = document.getElementById(UI_IDS.importButton);
             if (importButton) {
               importButton.classList.remove(CSS_CLASSES.importButtonOn);
-              importButton.setAttribute("aria-label", "Enable import");
-              importButton.setAttribute("data-state", "closed");
-              importButton.innerHTML = `${githubSVG} Import Repo`;
+              importButton.setAttribute("aria-label", "Import repository");
+              importButton.innerHTML = `<div class="flex gap-1">${githubSVG}<span class="max-sm:hidden sm:ml-0.5">Import</span></div>`;
               importButton.dataset.mode = "off";
             }
 
@@ -797,20 +839,16 @@
                   })
                     .then(() => {
                       if (importButton) {
+                        const repoName = getRepoNamefromURL(url)
+                          ?.split("/")
+                          ?.pop()
+                          ?.slice(0, 10)
+                          ?.replace(/^./, (c) => c.toUpperCase()) || "Repo";
+
                         importButton.classList.add(CSS_CLASSES.importButtonOn);
-                        importButton.setAttribute(
-                          "aria-label",
-                          "Disable import"
-                        );
-                        importButton.setAttribute("data-state", "open");
+                        importButton.setAttribute("aria-label", "Repository imported");
                         importButton.dataset.mode = "on";
-                        importButton.innerHTML = `${githubSVG} ${getRepoNamefromURL(
-                          url
-                        )
-                          .split("/")
-                          .pop()
-                          .slice(0, 10)
-                          .replace(/^./, (c) => c.toUpperCase())}`;
+                        importButton.innerHTML = `<div class="flex gap-1">${githubSVG}<span class="max-sm:hidden sm:ml-0.5">${repoName}</span></div>`;
                       }
                       resolve();
                     })
@@ -834,21 +872,18 @@
               if (importButton) {
                 importButton.classList.remove(CSS_CLASSES.importButtonLoading);
                 importButton.classList.remove(CSS_CLASSES.importButtonOn);
-                importButton.setAttribute("aria-label", "Enable import");
-                importButton.setAttribute("data-state", "closed");
-                importButton.innerHTML = `${githubSVG} Import Repo`;
+                importButton.setAttribute("aria-label", "Import repository");
+                importButton.innerHTML = `<div class="flex gap-1">${githubSVG}<span class="max-sm:hidden sm:ml-0.5">Import</span></div>`;
                 importButton.dataset.mode = "off";
                 importButton.disabled = false;
               }
               Logger.error("Error during repo import:", err);
+              alert(`Failed to import repository: ${err.message}`);
             })
             .finally(() => {
               if (importButton) {
                 importButton.classList.remove(CSS_CLASSES.importButtonLoading);
                 importButton.disabled = false;
-                if (importButton.dataset.mode === "on") {
-                  importButton.setAttribute("aria-label", "Disable import");
-                }
               }
             });
         } else {
@@ -872,9 +907,8 @@
           const importButton = document.getElementById(UI_IDS.importButton);
           if (importButton) {
             importButton.classList.remove(CSS_CLASSES.importButtonOn);
-            importButton.setAttribute("aria-label", "Enable import");
-            importButton.setAttribute("data-state", "closed");
-            importButton.innerHTML = `${githubSVG} Import Repo`;
+            importButton.setAttribute("aria-label", "Import repository");
+            importButton.innerHTML = `<div class="flex gap-1">${githubSVG}<span class="max-sm:hidden sm:ml-0.5">Import</span></div>`;
             importButton.dataset.mode = "off";
           }
 
@@ -948,27 +982,17 @@
     });
   };
 
-  const generateRelevantContext = (query) => {
-    return new Promise((resolve) => {
-      Logger.log("generateRelevantContext: Processing query", query);
+  // Simplified generateRelevantContext function
+  const generateRelevantContext = (query) =>
+    new Promise((resolve) => {
       const chatId = getChatId();
-      IngestDBManager.getState(chatId)
-        .then((state) => {
-          if (!state || !state.repoIndex) {
-            Logger.log("generateRelevantContext: No repo index found in state");
-            resolve(null);
-            return;
-          }
+      IngestDBManager.getState(chatId).then((state) => {
+        if (!state?.repoIndex) return resolve(null);
 
-          const index = state.repoIndex;
-          const fileList = getAllFileNames(index);
-          Logger.log(
-            "generateRelevantContext: Generated file list with",
-            fileList.length,
-            "files"
-          );
+        const idx = state.repoIndex;
+        const fileList = getAllFileNames(idx);
 
-          const prompt = `Given the following list of files in a repository and a user query, return the indices of the most relevant files that would help answer the query. Only return the indices of files that are directly relevant.
+        const prompt = `Given the following list of files in a repository and a user query, return the indices of the most relevant files that would help answer the query. Only return the indices of files that are directly relevant.
 
 Files in repository:
 ${JSON.stringify(fileList, null, 2)}
@@ -980,112 +1004,67 @@ Return the response in this exact JSON format:
   "relevantIndices": [array of indices]
 }`;
 
-          return new Promise((resolve, reject) => {
-            GM_xmlhttpRequest({
-              method: "POST",
-              url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`,
-              headers: {
-                "Content-Type": "application/json",
+        GM_xmlhttpRequest({
+          method: "POST",
+          url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`,
+          headers: { "Content-Type": "application/json" },
+          data: JSON.stringify({
+            contents: [
+              {
+                parts: [{ text: prompt }],
               },
-              data: JSON.stringify({
-                contents: [
-                  {
-                    parts: [{ text: prompt }],
-                  },
-                ],
-                generationConfig: {
-                  responseMimeType: "application/json",
-                  responseSchema: {
-                    type: "OBJECT",
-                    properties: {
-                      relevantIndices: {
-                        type: "ARRAY",
-                        items: { type: "NUMBER" },
-                      },
-                    },
-                    propertyOrdering: ["relevantIndices"],
+            ],
+            generationConfig: {
+              responseMimeType: "application/json",
+              responseSchema: {
+                type: "OBJECT",
+                properties: {
+                  relevantIndices: {
+                    type: "ARRAY",
+                    items: { type: "NUMBER" },
                   },
                 },
-              }),
-              onload: (response) => {
-                if (response.status >= 200 && response.status < 300) {
-                  Logger.log(
-                    "generateRelevantContext: Gemini API call successful"
-                  );
-                  resolve(JSON.parse(response.responseText));
-                } else {
-                  Logger.error(
-                    "generateRelevantContext: Gemini API error",
-                    response.status
-                  );
-                  reject(new Error(`Gemini API error: ${response.status}`));
-                }
+                propertyOrdering: ["relevantIndices"],
               },
-              onerror: (error) => {
-                Logger.error(
-                  "generateRelevantContext: Gemini API request failed",
-                  error
-                );
-                reject(error);
-              },
-            });
-          });
-        })
-        .then((response) => {
-          if (!response) return null;
-          const responseText = response.candidates[0].content.parts[0].text;
-          let relevantIndices;
-          try {
-            relevantIndices = JSON.parse(responseText).relevantIndices;
-            Logger.log(
-              "generateRelevantContext: Parsed relevant indices",
-              relevantIndices
-            );
-          } catch (e) {
-            Logger.error(
-              "generateRelevantContext: Failed to parse Gemini API response",
-              e
-            );
-            return null;
-          }
+            },
+          }),
+          onload: (r) => {
+            if (r.status < 200 || r.status >= 300) {
+              Logger.error("Gemini error", r);
+              return resolve(null);
+            }
+            let relevantIndices;
+            try {
+              relevantIndices = JSON.parse(
+                JSON.parse(r.responseText).candidates[0].content.parts[0].text
+              ).relevantIndices;
+            } catch (e) {
+              Logger.error("Parse error", e);
+              return resolve(null);
+            }
 
-          if (!Array.isArray(relevantIndices)) {
-            Logger.error(
-              "generateRelevantContext: Invalid relevantIndices format",
-              relevantIndices
-            );
-            return null;
-          }
+            if (!Array.isArray(relevantIndices)) {
+              Logger.error("Invalid relevantIndices format", relevantIndices);
+              return resolve(null);
+            }
 
-          const relevantFiles = getFileContents(index, relevantIndices);
-          if (!relevantFiles.length) {
-            Logger.log("generateRelevantContext: No relevant files found");
-            return null;
-          }
+            const files = getFileContents(idx, relevantIndices);
+            if (!files.length) return resolve(null);
 
-          const context = relevantFiles
-            .map(
-              (file) => `File: ${file.fileName}\nContent:\n${file.content}\n`
-            )
-            .join("\n");
-
-          Logger.log(
-            "generateRelevantContext: Generated context with",
-            relevantFiles.length,
-            "files"
-          );
-          resolve(context);
-        })
-        .catch((error) => {
-          Logger.error(
-            "generateRelevantContext: Error generating context",
-            error
-          );
-          resolve(null);
+            const context = files
+              .map((f) => `File: ${f.fileName}\nContent:\n${f.content}\n`)
+              .join("\n");
+            resolve(context);
+          },
+          onerror: (e) => {
+            Logger.error("Gemini request failed", e);
+            resolve(null);
+          },
         });
+      });
     });
-  };
 
+  // Fixed FetchInterceptor to prevent interference with pasting
   const FetchInterceptor = {
     originalFetch: null,
     isIntercepting: false,
@@ -1101,29 +1080,28 @@ Return the response in this exact JSON format:
         FetchInterceptor.originalFetch = originalFetch;
 
         w.fetch = (input, initOptions = {}) => {
-          if (FetchInterceptor.isIntercepting) {
-            Logger.log(
-              "FetchInterceptor: Already intercepting, passing through"
-            );
-            return originalFetch.call(w, input, initOptions);
-          }
-
-          const url = typeof input === "string" ? input : input.url;
-          if (
-            !url.includes("/api/chat") ||
-            url.includes("/api/chat/resume") ||
-            initOptions.method !== "POST"
-          ) {
+          // Early return for non-relevant requests
+          const url = typeof input === "string" ? input : input?.url;
+          if (!url ||
+              !url.includes("/api/chat") ||
+              url.includes("/api/chat/resume") ||
+              initOptions?.method !== "POST" ||
+              FetchInterceptor.isIntercepting) {
             return originalFetch.call(w, input, initOptions);
           }
 
           const chatId = getChatId();
-          IngestDBManager.getState(chatId)
+          if (!chatId) {
+            return originalFetch.call(w, input, initOptions);
+          }
+
+          // Set intercepting flag immediately
+          FetchInterceptor.isIntercepting = true;
+
+          return IngestDBManager.getState(chatId)
             .then((state) => {
               if (!state || !state.repoUrl) {
-                Logger.log(
-                  "FetchInterceptor: No repo URL in state, passing through"
-                );
+                Logger.log("FetchInterceptor: No repo URL in state, passing through");
                 return originalFetch.call(w, input, initOptions);
               }
 
@@ -1131,10 +1109,7 @@ Return the response in this exact JSON format:
               try {
                 data = JSON.parse(initOptions.body || "{}");
               } catch (error) {
-                Logger.error(
-                  "FetchInterceptor: Failed to parse request body",
-                  error
-                );
+                Logger.error("FetchInterceptor: Failed to parse request body", error);
                 return originalFetch.call(w, input, initOptions);
               }
 
@@ -1145,47 +1120,32 @@ Return the response in this exact JSON format:
 
               const messages = data.messages;
               const lastIdx = messages.length - 1;
-              if (
-                lastIdx < 0 ||
-                !messages[lastIdx] ||
-                messages[lastIdx].role !== "user"
-              ) {
+              if (lastIdx < 0 || !messages[lastIdx] || messages[lastIdx].role !== "user") {
                 Logger.log("FetchInterceptor: No user message found");
                 return originalFetch.call(w, input, initOptions);
               }
-              const originalPrompt = messages[lastIdx].content;
 
+              const originalPrompt = messages[lastIdx].content;
               if (typeof originalPrompt !== "string") {
-                Logger.log(
-                  "FetchInterceptor: Invalid prompt type",
-                  typeof originalPrompt
-                );
+                Logger.log("FetchInterceptor: Invalid prompt type", typeof originalPrompt);
                 return originalFetch.call(w, input, initOptions);
               }
 
-              Logger.log(
-                "FetchInterceptor: Intercepting fetch for ingest enhancement"
-              );
-              FetchInterceptor.isIntercepting = true;
+              Logger.log("FetchInterceptor: Intercepting fetch for ingest enhancement");
 
               return Promise.all([
                 getRepoTree(),
                 generateRelevantContext(originalPrompt),
               ])
                 .then(([tree, context]) => {
-                  Logger.log("FetchInterceptor: Retrieved repo tree");
-                  Logger.log("FetchInterceptor: Generated context", !!context);
+                  Logger.log("FetchInterceptor: Retrieved repo tree and context");
 
                   if (context) {
                     const importInstruction =
                       "The following information was retrieved from the repository. Please use these results to inform your response:\n";
-                    messages[
-                      lastIdx
-                    ].content = `${importInstruction}\n[Repository Tree]\n${tree}\n\n[Repository Context]\n${context}\n\n[Original Message]\n${originalPrompt}`;
+                    messages[lastIdx].content = `${importInstruction}\n[Repository Tree]\n${tree}\n\n[Repository Context]\n${context}\n\n[Original Message]\n${originalPrompt}`;
                     initOptions.body = JSON.stringify(data);
-                    Logger.log(
-                      "FetchInterceptor: Enhanced prompt with repository context"
-                    );
+                    Logger.log("FetchInterceptor: Enhanced prompt with repository context");
                   } else {
                     Logger.log("FetchInterceptor: No context to add to prompt");
                   }
@@ -1193,19 +1153,16 @@ Return the response in this exact JSON format:
                   return originalFetch.call(w, input, initOptions);
                 })
                 .catch((error) => {
-                  Logger.error(
-                    "FetchInterceptor: Error during interception",
-                    error
-                  );
+                  Logger.error("FetchInterceptor: Error during interception", error);
                   return originalFetch.call(w, input, initOptions);
-                })
-                .finally(() => {
-                  FetchInterceptor.isIntercepting = false;
                 });
             })
             .catch((error) => {
               Logger.error("FetchInterceptor: Error getting state", error);
               return originalFetch.call(w, input, initOptions);
+            })
+            .finally(() => {
+              FetchInterceptor.isIntercepting = false;
             });
         };
 
@@ -1221,43 +1178,52 @@ Return the response in this exact JSON format:
 
     init: () => {
       return new Promise((resolve, reject) => {
-        const request = indexedDB.open(DB_NAME, DB_VERSION);
+        try {
+          const request = indexedDB.open(DB_NAME, DB_VERSION);
 
-        request.onerror = () => {
-          Logger.error("Failed to open IndexedDB");
-          reject(request.error);
-        };
+          request.onerror = () => {
+            Logger.error("Failed to open IndexedDB");
+            reject(request.error);
+          };
 
-        request.onsuccess = (event) => {
-          IngestDBManager.db = event.target.result;
-          Logger.log("IndexedDB opened successfully");
-          resolve();
-        };
+          request.onsuccess = (event) => {
+            IngestDBManager.db = event.target.result;
+            Logger.log("IndexedDB opened successfully");
+            resolve();
+          };
 
-        request.onupgradeneeded = (event) => {
-          const db = event.target.result;
-          if (!db.objectStoreNames.contains(STORE_NAME)) {
-            const store = db.createObjectStore(STORE_NAME, {
-              keyPath: "chatId",
-            });
-            store.createIndex("repoUrl", "repoUrl", { unique: false });
-            Logger.log("IndexedDB store created");
-          }
-        };
+          request.onupgradeneeded = (event) => {
+            const db = event.target.result;
+            if (!db.objectStoreNames.contains(STORE_NAME)) {
+              const store = db.createObjectStore(STORE_NAME, {
+                keyPath: "chatId",
+              });
+              store.createIndex("repoUrl", "repoUrl", { unique: false });
+              Logger.log("IndexedDB store created");
+            }
+          };
+        } catch (error) {
+          Logger.error("Error initializing IndexedDB:", error);
+          reject(error);
+        }
       });
     },
 
     getAllStates: () => {
       return new Promise((resolve, reject) => {
-        const transaction = IngestDBManager.db.transaction(
-          [STORE_NAME],
-          "readonly"
-        );
-        const store = transaction.objectStore(STORE_NAME);
-        const request = store.getAll();
+        try {
+          const transaction = IngestDBManager.db.transaction(
+            [STORE_NAME],
+            "readonly"
+          );
+          const store = transaction.objectStore(STORE_NAME);
+          const request = store.getAll();
 
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
+        } catch (error) {
+          reject(error);
+        }
       });
     },
 
@@ -1268,57 +1234,73 @@ Return the response in this exact JSON format:
           return;
         }
 
-        const transaction = IngestDBManager.db.transaction(
-          [STORE_NAME],
-          "readonly"
-        );
-        const store = transaction.objectStore(STORE_NAME);
-        const request = store.get(chatId);
+        try {
+          const transaction = IngestDBManager.db.transaction(
+            [STORE_NAME],
+            "readonly"
+          );
+          const store = transaction.objectStore(STORE_NAME);
+          const request = store.get(chatId);
 
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
+        } catch (error) {
+          reject(error);
+        }
       });
     },
 
     saveState: (state) => {
       return new Promise((resolve, reject) => {
-        const transaction = IngestDBManager.db.transaction(
-          [STORE_NAME],
-          "readwrite"
-        );
-        const store = transaction.objectStore(STORE_NAME);
-        const request = store.put(state);
+        try {
+          const transaction = IngestDBManager.db.transaction(
+            [STORE_NAME],
+            "readwrite"
+          );
+          const store = transaction.objectStore(STORE_NAME);
+          const request = store.put(state);
 
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
+        } catch (error) {
+          reject(error);
+        }
       });
     },
 
     deleteState: (chatId) => {
       return new Promise((resolve, reject) => {
-        const transaction = IngestDBManager.db.transaction(
-          [STORE_NAME],
-          "readwrite"
-        );
-        const store = transaction.objectStore(STORE_NAME);
-        const request = store.delete(chatId);
+        try {
+          const transaction = IngestDBManager.db.transaction(
+            [STORE_NAME],
+            "readwrite"
+          );
+          const store = transaction.objectStore(STORE_NAME);
+          const request = store.delete(chatId);
 
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
+        } catch (error) {
+          reject(error);
+        }
       });
     },
 
     clearAll: () => {
       return new Promise((resolve, reject) => {
-        const transaction = IngestDBManager.db.transaction(
-          [STORE_NAME],
-          "readwrite"
-        );
-        const store = transaction.objectStore(STORE_NAME);
-        const request = store.clear();
+        try {
+          const transaction = IngestDBManager.db.transaction(
+            [STORE_NAME],
+            "readwrite"
+          );
+          const store = transaction.objectStore(STORE_NAME);
+          const request = store.clear();
 
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
+        } catch (error) {
+          reject(error);
+        }
       });
     },
   };
@@ -1326,87 +1308,99 @@ Return the response in this exact JSON format:
   const MenuCommands = {
     init: () => {
       return new Promise((resolve) => {
-        GM_registerMenuCommand("Toggle debug logs", () => {
-          GM_getValue(GM_STORAGE_KEYS.DEBUG, false)
-            .then((currentDebug) => {
-              const newDebug = !currentDebug;
-              return GM_setValue(GM_STORAGE_KEYS.DEBUG, newDebug);
-            })
-            .then(() => {
-              debugMode = !debugMode;
-              Logger.log(
-                `Debug mode toggled to: ${debugMode} via menu. Reloading...`
-              );
-              location.reload();
-            })
-            .catch((err) => {
-              Logger.error("Failed to toggle debug mode:", err);
-            });
-        });
+        try {
+          GM_registerMenuCommand("Toggle debug logs", () => {
+            safeGMGetValue(GM_STORAGE_KEYS.DEBUG, false)
+              .then((currentDebug) => {
+                const newDebug = !currentDebug;
+                return safeGMSetValue(GM_STORAGE_KEYS.DEBUG, newDebug);
+              })
+              .then(() => {
+                debugMode = !debugMode;
+                Logger.log(
+                  `Debug mode toggled to: ${debugMode} via menu. Reloading...`
+                );
+                location.reload();
+              })
+              .catch((err) => {
+                Logger.error("Failed to toggle debug mode:", err);
+              });
+          });
 
-        GM_registerMenuCommand("Reset Gemini API Key", () => {
-          GM_setValue(GM_STORAGE_KEYS.GEMINI_API_KEY, "")
-            .then(() => {
-              geminiApiKey = null;
-              Logger.log("Gemini API Key reset via menu.");
-              location.reload();
-            })
-            .catch((err) => {
-              Logger.error("Failed to reset Gemini API key:", err);
-            });
-        });
+          GM_registerMenuCommand("Reset Gemini API Key", () => {
+            safeGMSetValue(GM_STORAGE_KEYS.GEMINI_API_KEY, "")
+              .then(() => {
+                geminiApiKey = null;
+                Logger.log("Gemini API Key reset via menu.");
+                location.reload();
+              })
+              .catch((err) => {
+                Logger.error("Failed to reset Gemini API key:", err);
+              });
+          });
 
-        GM_registerMenuCommand("Reset RepoGist API URL", () => {
-          GM_setValue(GM_STORAGE_KEYS.API_URL, "")
-            .then(() => {
-              apiUrl = null;
-              Logger.log("RepoGist API URL reset via menu.");
-              location.reload();
-            })
-            .catch((err) => {
-              Logger.error("Failed to reset RepoGist API URL:", err);
-            });
-        });
+          GM_registerMenuCommand("Reset RepoGist API URL", () => {
+            safeGMSetValue(GM_STORAGE_KEYS.API_URL, "")
+              .then(() => {
+                apiUrl = null;
+                Logger.log("RepoGist API URL reset via menu.");
+                location.reload();
+              })
+              .catch((err) => {
+                Logger.error("Failed to reset RepoGist API URL:", err);
+              });
+          });
 
-        GM_registerMenuCommand("Reset IndexedDB for all chats", () => {
-          IngestDBManager.clearAll()
-            .then(() => {
-              Logger.log("IndexedDB reset via menu.");
-              location.reload();
-            })
-            .catch((err) => {
-              Logger.error("Failed to reset IndexedDB:", err);
-            });
-        });
+          GM_registerMenuCommand("Reset IndexedDB for all chats", () => {
+            IngestDBManager.clearAll()
+              .then(() => {
+                Logger.log("IndexedDB reset via menu.");
+                location.reload();
+              })
+              .catch((err) => {
+                Logger.error("Failed to reset IndexedDB:", err);
+              });
+          });
 
-        Logger.log("Menu commands registered.");
-        resolve();
+          Logger.log("Menu commands registered.");
+          resolve();
+        } catch (error) {
+          Logger.error("Error registering menu commands:", error);
+          resolve();
+        }
       });
     },
   };
 
   function main() {
     try {
-      debugMode = GM_getValue(GM_STORAGE_KEYS.DEBUG, false);
-      Logger.log(
-        `${SCRIPT_NAME} v${SCRIPT_VERSION} starting. Debug mode: ${debugMode}`
-      );
+      // Initialize debug mode safely
+      safeGMGetValue(GM_STORAGE_KEYS.DEBUG, false)
+        .then((value) => {
+          debugMode = value;
+          Logger.log(
+            `${SCRIPT_NAME} v${SCRIPT_VERSION} starting. Debug mode: ${debugMode}`
+          );
 
-      FetchInterceptor.init();
-      MenuCommands.init().catch((err) => {
-        Logger.error("Failed to initialize menu commands:", err);
-      });
-      IngestDBManager.init().catch((err) => {
-        Logger.error("Failed to initialize database:", err);
-      });
-      StyleManager.injectGlobalStyles();
+          // Initialize all components
+          FetchInterceptor.init();
 
-      GM_getValue(GM_STORAGE_KEYS.API_URL)
-        .then((url) => {
-          apiUrl = url;
-          return GM_getValue(GM_STORAGE_KEYS.GEMINI_API_KEY);
+          return Promise.all([
+            MenuCommands.init(),
+            IngestDBManager.init()
+          ]);
         })
-        .then((key) => {
+        .then(() => {
+          StyleManager.injectGlobalStyles();
+
+          // Load API configuration safely
+          return Promise.all([
+            safeGMGetValue(GM_STORAGE_KEYS.API_URL),
+            safeGMGetValue(GM_STORAGE_KEYS.GEMINI_API_KEY)
+          ]);
+        })
+        .then(([url, key]) => {
+          apiUrl = url;
           geminiApiKey = key;
           if (!apiUrl || !geminiApiKey) {
             Logger.log(
@@ -1415,145 +1409,145 @@ Return the response in this exact JSON format:
           } else {
             Logger.log("RepoGist API URL and Gemini API Key loaded.");
           }
-        })
-        .catch((err) => {
-          Logger.error("Failed to load API configuration:", err);
-        });
 
-      let lastChatId = getChatId();
-      const urlObserver = new MutationObserver(() => {
-        const currentChatId = getChatId();
-        if (currentChatId !== lastChatId) {
-          lastChatId = currentChatId;
-          injectButtonWithRetry().catch((err) => {
-            Logger.error("Failed to inject button:", err);
-          });
-          IngestDBManager.getState(currentChatId)
-            .then((state) => {
-              const importButton = document.getElementById(UI_IDS.importButton);
-              if (importButton) {
-                if (state && state.repoUrl) {
-                  importButton.innerHTML = `${githubSVG} ${getRepoNamefromURL(
-                    state.repoUrl
-                  )
-                    .split("/")
-                    .pop()
-                    .slice(0, 10)
-                    .replace(/^./, (c) => c.toUpperCase())}`;
-                  importButton.classList.add(CSS_CLASSES.importButtonOn);
-                  importButton.setAttribute("aria-label", "Disable import");
-                  importButton.setAttribute("data-state", "open");
-                  importButton.dataset.mode = "on";
-                } else {
-                  importButton.innerHTML = `${githubSVG} Import Repo`;
-                  importButton.classList.remove(CSS_CLASSES.importButtonOn);
-                  importButton.setAttribute("aria-label", "Enable import");
-                  importButton.setAttribute("data-state", "closed");
-                  importButton.dataset.mode = "off";
-                }
-              }
-            })
-            .catch((err) => {
-              Logger.error("Failed to update button state:", err);
-            });
-        }
-      });
+          // Set up URL observer and button injection
+          let lastChatId = getChatId();
+          const urlObserver = new MutationObserver(() => {
+            const currentChatId = getChatId();
+            if (currentChatId !== lastChatId) {
+              lastChatId = currentChatId;
+              setTimeout(() => {
+                injectButtonWithRetry().catch((err) => {
+                  Logger.error("Failed to inject button:", err);
+                });
+              }, 500);
 
-      urlObserver.observe(document.querySelector("title"), {
-        subtree: true,
-        characterData: true,
-        childList: true,
-      });
+              IngestDBManager.getState(currentChatId)
+                .then((state) => {
+                  const importButton = document.getElementById(UI_IDS.importButton);
+                  if (importButton) {
+                    if (state && state.repoUrl) {
+                      const repoName = getRepoNamefromURL(state.repoUrl)
+                        ?.split("/")
+                        ?.pop()
+                        ?.slice(0, 10)
+                        ?.replace(/^./, (c) => c.toUpperCase()) || "Repo";
 
-      const injectButtonWithRetry = (maxRetries = 5, delay = 1000) => {
-        let retries = 0;
-
-        const tryInjection = () => {
-          const injectionObserverTargetParent = document.querySelector(
-            selectors.messageActions
-          );
-
-          if (injectionObserverTargetParent) {
-            UIManager.injectImportButton()
-              .then((success) => {
-                if (success) {
-                  Logger.log("Successfully injected import button");
-                  return true;
-                }
-              })
-              .catch((err) => {
-                Logger.error("Failed to inject button:", err);
-              });
-          }
-
-          if (retries < maxRetries) {
-            retries++;
-            Logger.log(
-              `Retrying button injection (${retries}/${maxRetries})...`
-            );
-            setTimeout(() => tryInjection(), delay);
-            return false;
-          }
-
-          return false;
-        };
-
-        return tryInjection();
-      };
-
-      injectButtonWithRetry()
-        .then((success) => {
-          if (!success) {
-            Logger.log("Initial button injection failed, setting up observers");
-
-            const injectionObserver = new MutationObserver(() => {
-              UIManager.injectImportButton()
-                .then((success) => {
-                  if (success) {
-                    Logger.log("Button injected via mutation observer");
+                      importButton.innerHTML = `<div class="flex gap-1">${githubSVG}<span class="max-sm:hidden sm:ml-0.5">${repoName}</span></div>`;
+                      importButton.classList.add(CSS_CLASSES.importButtonOn);
+                      importButton.setAttribute("aria-label", "Repository imported");
+                      importButton.dataset.mode = "on";
+                    } else {
+                      importButton.innerHTML = `<div class="flex gap-1">${githubSVG}<span class="max-sm:hidden sm:ml-0.5">Import</span></div>`;
+                      importButton.classList.remove(CSS_CLASSES.importButtonOn);
+                      importButton.setAttribute("aria-label", "Import repository");
+                      importButton.dataset.mode = "off";
+                    }
                   }
                 })
                 .catch((err) => {
-                  Logger.error("Failed to inject button:", err);
+                  Logger.error("Failed to update button state:", err);
                 });
-            });
-
-            const documentObserver = new MutationObserver(() => {
-              const target = document.querySelector(selectors.messageActions);
-              if (target) {
-                injectButtonWithRetry()
-                  .then((success) => {
-                    if (success) {
-                      Logger.log("Button injected via document observer");
-                    }
-                  })
-                  .catch((err) => {
-                    Logger.error("Failed to inject button:", err);
-                  });
-              }
-            });
-
-            const messageActionsContainer = document.querySelector(
-              selectors.messageActions
-            );
-            if (messageActionsContainer) {
-              injectionObserver.observe(messageActionsContainer, {
-                childList: true,
-                subtree: true,
-              });
             }
+          });
 
-            documentObserver.observe(document.body, {
-              childList: true,
-              subtree: true,
-            });
-          }
+          urlObserver.observe(document.querySelector("title"), {
+            subtree: true,
+            characterData: true,
+            childList: true,
+          });
+
+          const injectButtonWithRetry = (maxRetries = 10, delay = 1000) => {
+            let retries = 0;
+
+            const tryInjection = () => {
+              return new Promise((resolve) => {
+                const injectionObserverTargetParent = document.querySelector(
+                  selectors.messageActions
+                );
+
+                if (injectionObserverTargetParent) {
+                  UIManager.injectImportButton()
+                    .then((success) => {
+                      if (success) {
+                        Logger.log("Successfully injected import button");
+                        resolve(true);
+                        return;
+                      }
+                      throw new Error("Injection failed");
+                    })
+                    .catch(() => {
+                      if (retries < maxRetries) {
+                        retries++;
+                        Logger.log(
+                          `Retrying button injection (${retries}/${maxRetries})...`
+                        );
+                        setTimeout(() => {
+                          tryInjection().then(resolve).catch(() => resolve(false));
+                        }, delay);
+                      } else {
+                        resolve(false);
+                      }
+                    });
+                } else {
+                  if (retries < maxRetries) {
+                    retries++;
+                    Logger.log(
+                      `Container not found, retrying (${retries}/${maxRetries})...`
+                    );
+                    setTimeout(() => {
+                      tryInjection().then(resolve).catch(() => resolve(false));
+                    }, delay);
+                  } else {
+                    Logger.error("Container not found after max retries");
+                    resolve(false);
+                  }
+                }
+              });
+            };
+
+            return tryInjection();
+          };
+
+          // Initial injection with delay to ensure DOM is ready
+          setTimeout(() => {
+            injectButtonWithRetry()
+              .then((success) => {
+                if (!success) {
+                  Logger.log("Initial button injection failed, setting up observers");
+
+                  const documentObserver = new MutationObserver(() => {
+                    const target = document.querySelector(selectors.messageActions);
+                    if (target && !target.querySelector(`#${UI_IDS.importButton}`)) {
+                      UIManager.injectImportButton()
+                        .then((success) => {
+                          if (success) {
+                            Logger.log("Button injected via document observer");
+                          }
+                        })
+                        .catch((err) => {
+                          Logger.error("Failed to inject button:", err);
+                        });
+                    }
+                  });
+
+                  documentObserver.observe(document.body, {
+                    childList: true,
+                    subtree: true,
+                  });
+                }
+              })
+              .catch((err) => {
+                Logger.error("Failed to initialize button injection:", err);
+              });
+          }, 2000);
+
+          Logger.log(`${SCRIPT_NAME} v${SCRIPT_VERSION} initialized!`);
         })
         .catch((err) => {
-          Logger.error("Failed to initialize button injection:", err);
+          Logger.error("Failed to initialize:", err);
         });
 
-      Logger.log(`${SCRIPT_NAME} v${SCRIPT_VERSION} initialized!`);
     } catch (error) {
       Logger.error("Failed to initialize:", error);
     }
