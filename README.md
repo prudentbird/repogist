@@ -1,12 +1,12 @@
 # Repo Gist Userscript
 
-A userscript that enhances T3 Chat by providing GitHub repository context to your conversations. This script allows you to import repositories and use their contents as additional context for your chat interactions.
+A userscript that enhances [T3 Chat](https://t3.chat) by providing GitHub repository context to your conversations. This script allows you to import repositories and use their contents as additional context for your chat interactions.
 
 ## Features
 
-- Import public GitHub repositories directly into your T3 Chat conversations
+- Import public GitHub repositories directly into your [T3 Chat](https://t3.chat) conversations
 - Automatically enhances chat prompts with relevant repository context
-- Clean and intuitive UI integration with T3 Chat
+- Clean and intuitive UI integration with [T3 Chat](https://t3.chat)
 - Persistent storage of repository data using IndexedDB
 - Debug mode for troubleshooting
 - Secure API key management
