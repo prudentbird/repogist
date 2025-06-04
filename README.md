@@ -1,6 +1,6 @@
 # Repo Gist Userscript
 
-A Tampermonkey userscript that enhances T3 Chat by providing GitHub repository context to your conversations. This script allows you to import repositories and use their contents as additional context for your chat interactions.
+A userscript that enhances T3 Chat by providing GitHub repository context to your conversations. This script allows you to import repositories and use their contents as additional context for your chat interactions.
 
 ## Features
 
