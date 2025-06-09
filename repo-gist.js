@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Repo Gist
 // @namespace    https://github.com/prudentbird
-// @version      0.0.3
+// @version      0.0.4
 // @description  Provides GitHub repositories as additional context.
 // @author       Prudent Bird
 // @match        https://t3.chat/*
@@ -13,7 +13,6 @@
 // @grant        GM_xmlhttpRequest
 // @grant        GM_registerMenuCommand
 // @run-at       document-idle
-
 // @connect      *
 // @license      MIT
 // ==/UserScript==
@@ -40,11 +39,9 @@
   const safeGMGetValue = (key, defaultValue = null) => {
     try {
       const result = GM_getValue(key, defaultValue);
-      // Check if it's a promise
-      if (result && typeof result.then === 'function') {
+      if (result && typeof result.then === "function") {
         return result;
       } else {
-        // Return a resolved promise for consistency
         return Promise.resolve(result);
       }
     } catch (error) {
@@ -57,11 +54,9 @@
   const safeGMSetValue = (key, value) => {
     try {
       const result = GM_setValue(key, value);
-      // Check if it's a promise
-      if (result && typeof result.then === 'function') {
+      if (result && typeof result.then === "function") {
         return result;
       } else {
-        // Return a resolved promise for consistency
         return Promise.resolve(result);
       }
     } catch (error) {
@@ -208,7 +203,10 @@
             .then(() => {
               apiUrl = url;
               if (geminiKey) {
-                return safeGMSetValue(GM_STORAGE_KEYS.GEMINI_API_KEY, geminiKey);
+                return safeGMSetValue(
+                  GM_STORAGE_KEYS.GEMINI_API_KEY,
+                  geminiKey
+                );
               }
             })
             .then(() => {
@@ -580,11 +578,12 @@
             button.setAttribute("data-state", "closed");
 
             if (state && state.repoUrl) {
-              const repoName = getRepoNamefromURL(state.repoUrl)
-                ?.split("/")
-                ?.pop()
-                ?.slice(0, 10)
-                ?.replace(/^./, (c) => c.toUpperCase()) || "Repo";
+              const repoName =
+                getRepoNamefromURL(state.repoUrl)
+                  ?.split("/")
+                  ?.pop()
+                  ?.slice(0, 10)
+                  ?.replace(/^./, (c) => c.toUpperCase()) || "Repo";
 
               button.innerHTML = `<div class="flex gap-1">${githubSVG}<span class="max-sm:hidden sm:ml-0.5">${repoName}</span></div>`;
               button.setAttribute("aria-label", "Repository imported");
@@ -630,10 +629,15 @@
     injectImportButton: () => {
       return new Promise((resolve) => {
         // Find the exact container with model selector, thinking level, and attach buttons
-        const messageActionsContainer = document.querySelector(selectors.messageActions);
+        const messageActionsContainer = document.querySelector(
+          selectors.messageActions
+        );
 
         if (!messageActionsContainer) {
-          Logger.log("Message actions container not found with selector:", selectors.messageActions);
+          Logger.log(
+            "Message actions container not found with selector:",
+            selectors.messageActions
+          );
           resolve(false);
           return;
         }
@@ -657,7 +661,9 @@
 
             // Insert the button as the last child (after attach button)
             messageActionsContainer.appendChild(button);
-            Logger.log("Import button injected successfully in message actions container");
+            Logger.log(
+              "Import button injected successfully in message actions container"
+            );
             resolve(true);
           })
           .catch((err) => {
@@ -839,14 +845,18 @@
                   })
                     .then(() => {
                       if (importButton) {
-                        const repoName = getRepoNamefromURL(url)
-                          ?.split("/")
-                          ?.pop()
-                          ?.slice(0, 10)
-                          ?.replace(/^./, (c) => c.toUpperCase()) || "Repo";
+                        const repoName =
+                          getRepoNamefromURL(url)
+                            ?.split("/")
+                            ?.pop()
+                            ?.slice(0, 10)
+                            ?.replace(/^./, (c) => c.toUpperCase()) || "Repo";
 
                         importButton.classList.add(CSS_CLASSES.importButtonOn);
-                        importButton.setAttribute("aria-label", "Repository imported");
+                        importButton.setAttribute(
+                          "aria-label",
+                          "Repository imported"
+                        );
                         importButton.dataset.mode = "on";
                         importButton.innerHTML = `<div class="flex gap-1">${githubSVG}<span class="max-sm:hidden sm:ml-0.5">${repoName}</span></div>`;
                       }
@@ -953,7 +963,9 @@
           return null;
         }
       })
-      .filter(function (item) { return item !== null; });
+      .filter(function (item) {
+        return item !== null;
+      });
     Logger.log(
       "getFileContents: Retrieved contents for",
       contents.length,
@@ -1082,11 +1094,13 @@ Return the response in this exact JSON format:
         w.fetch = (input, initOptions = {}) => {
           // Early return for non-relevant requests
           const url = typeof input === "string" ? input : input?.url;
-          if (!url ||
-              !url.includes("/api/chat") ||
-              url.includes("/api/chat/resume") ||
-              initOptions?.method !== "POST" ||
-              FetchInterceptor.isIntercepting) {
+          if (
+            !url ||
+            !url.includes("/api/chat") ||
+            url.includes("/api/chat/resume") ||
+            initOptions?.method !== "POST" ||
+            FetchInterceptor.isIntercepting
+          ) {
             return originalFetch.call(w, input, initOptions);
           }
 
@@ -1101,7 +1115,9 @@ Return the response in this exact JSON format:
           return IngestDBManager.getState(chatId)
             .then((state) => {
               if (!state || !state.repoUrl) {
-                Logger.log("FetchInterceptor: No repo URL in state, passing through");
+                Logger.log(
+                  "FetchInterceptor: No repo URL in state, passing through"
+                );
                 return originalFetch.call(w, input, initOptions);
               }
 
@@ -1109,7 +1125,10 @@ Return the response in this exact JSON format:
               try {
                 data = JSON.parse(initOptions.body || "{}");
               } catch (error) {
-                Logger.error("FetchInterceptor: Failed to parse request body", error);
+                Logger.error(
+                  "FetchInterceptor: Failed to parse request body",
+                  error
+                );
                 return originalFetch.call(w, input, initOptions);
               }
 
@@ -1120,32 +1139,63 @@ Return the response in this exact JSON format:
 
               const messages = data.messages;
               const lastIdx = messages.length - 1;
-              if (lastIdx < 0 || !messages[lastIdx] || messages[lastIdx].role !== "user") {
-                Logger.log("FetchInterceptor: No user message found");
+              const lastMessage = messages[lastIdx];
+
+              let messageType = null;
+              let originalPrompt = null;
+
+              if (lastIdx < 0 || !lastMessage || lastMessage.role !== "user") {
+                Logger.log(
+                  "FetchInterceptor: No valid user message found",
+                  lastMessage
+                );
                 return originalFetch.call(w, input, initOptions);
               }
 
-              const originalPrompt = messages[lastIdx].content;
-              if (typeof originalPrompt !== "string") {
-                Logger.log("FetchInterceptor: Invalid prompt type", typeof originalPrompt);
+              if (
+                Array.isArray(lastMessage.parts) &&
+                lastMessage.parts.length > 0 &&
+                typeof lastMessage.parts[0].text === "string"
+              ) {
+                messageType = "parts";
+                originalPrompt = lastMessage.parts[0].text;
+              } else if (typeof lastMessage.content === "string") {
+                messageType = "content";
+                originalPrompt = lastMessage.content;
+              } else {
+                Logger.log(
+                  "FetchInterceptor: No valid prompt found in last user message",
+                  lastMessage
+                );
                 return originalFetch.call(w, input, initOptions);
               }
 
-              Logger.log("FetchInterceptor: Intercepting fetch for ingest enhancement");
+              Logger.log(
+                "FetchInterceptor: Intercepting fetch for ingest enhancement"
+              );
 
               return Promise.all([
                 getRepoTree(),
                 generateRelevantContext(originalPrompt),
               ])
                 .then(([tree, context]) => {
-                  Logger.log("FetchInterceptor: Retrieved repo tree and context");
+                  Logger.log(
+                    "FetchInterceptor: Retrieved repo tree and context"
+                  );
 
                   if (context) {
                     const importInstruction =
                       "The following information was retrieved from the repository. Please use these results to inform your response:\n";
-                    messages[lastIdx].content = `${importInstruction}\n[Repository Tree]\n${tree}\n\n[Repository Context]\n${context}\n\n[Original Message]\n${originalPrompt}`;
+                    const enhancedPrompt = `${importInstruction}\n[Repository Tree]\n${tree}\n\n[Repository Context]\n${context}\n\n[Original Message]\n${originalPrompt}`;
+                    if (messageType === "parts") {
+                      messages[lastIdx].parts[0].text = enhancedPrompt;
+                    } else if (messageType === "content") {
+                      messages[lastIdx].content = enhancedPrompt;
+                    }
                     initOptions.body = JSON.stringify(data);
-                    Logger.log("FetchInterceptor: Enhanced prompt with repository context");
+                    Logger.log(
+                      "FetchInterceptor: Enhanced prompt with repository context"
+                    );
                   } else {
                     Logger.log("FetchInterceptor: No context to add to prompt");
                   }
@@ -1153,7 +1203,10 @@ Return the response in this exact JSON format:
                   return originalFetch.call(w, input, initOptions);
                 })
                 .catch((error) => {
-                  Logger.error("FetchInterceptor: Error during interception", error);
+                  Logger.error(
+                    "FetchInterceptor: Error during interception",
+                    error
+                  );
                   return originalFetch.call(w, input, initOptions);
                 });
             })
@@ -1385,10 +1438,7 @@ Return the response in this exact JSON format:
           // Initialize all components
           FetchInterceptor.init();
 
-          return Promise.all([
-            MenuCommands.init(),
-            IngestDBManager.init()
-          ]);
+          return Promise.all([MenuCommands.init(), IngestDBManager.init()]);
         })
         .then(() => {
           StyleManager.injectGlobalStyles();
@@ -1396,7 +1446,7 @@ Return the response in this exact JSON format:
           // Load API configuration safely
           return Promise.all([
             safeGMGetValue(GM_STORAGE_KEYS.API_URL),
-            safeGMGetValue(GM_STORAGE_KEYS.GEMINI_API_KEY)
+            safeGMGetValue(GM_STORAGE_KEYS.GEMINI_API_KEY),
           ]);
         })
         .then(([url, key]) => {
@@ -1424,23 +1474,32 @@ Return the response in this exact JSON format:
 
               IngestDBManager.getState(currentChatId)
                 .then((state) => {
-                  const importButton = document.getElementById(UI_IDS.importButton);
+                  const importButton = document.getElementById(
+                    UI_IDS.importButton
+                  );
                   if (importButton) {
                     if (state && state.repoUrl) {
-                      const repoName = getRepoNamefromURL(state.repoUrl)
-                        ?.split("/")
-                        ?.pop()
-                        ?.slice(0, 10)
-                        ?.replace(/^./, (c) => c.toUpperCase()) || "Repo";
+                      const repoName =
+                        getRepoNamefromURL(state.repoUrl)
+                          ?.split("/")
+                          ?.pop()
+                          ?.slice(0, 10)
+                          ?.replace(/^./, (c) => c.toUpperCase()) || "Repo";
 
                       importButton.innerHTML = `<div class="flex gap-1">${githubSVG}<span class="max-sm:hidden sm:ml-0.5">${repoName}</span></div>`;
                       importButton.classList.add(CSS_CLASSES.importButtonOn);
-                      importButton.setAttribute("aria-label", "Repository imported");
+                      importButton.setAttribute(
+                        "aria-label",
+                        "Repository imported"
+                      );
                       importButton.dataset.mode = "on";
                     } else {
                       importButton.innerHTML = `<div class="flex gap-1">${githubSVG}<span class="max-sm:hidden sm:ml-0.5">Import</span></div>`;
                       importButton.classList.remove(CSS_CLASSES.importButtonOn);
-                      importButton.setAttribute("aria-label", "Import repository");
+                      importButton.setAttribute(
+                        "aria-label",
+                        "Import repository"
+                      );
                       importButton.dataset.mode = "off";
                     }
                   }
@@ -1483,7 +1542,9 @@ Return the response in this exact JSON format:
                           `Retrying button injection (${retries}/${maxRetries})...`
                         );
                         setTimeout(() => {
-                          tryInjection().then(resolve).catch(() => resolve(false));
+                          tryInjection()
+                            .then(resolve)
+                            .catch(() => resolve(false));
                         }, delay);
                       } else {
                         resolve(false);
@@ -1496,7 +1557,9 @@ Return the response in this exact JSON format:
                       `Container not found, retrying (${retries}/${maxRetries})...`
                     );
                     setTimeout(() => {
-                      tryInjection().then(resolve).catch(() => resolve(false));
+                      tryInjection()
+                        .then(resolve)
+                        .catch(() => resolve(false));
                     }, delay);
                   } else {
                     Logger.error("Container not found after max retries");
@@ -1514,11 +1577,18 @@ Return the response in this exact JSON format:
             injectButtonWithRetry()
               .then((success) => {
                 if (!success) {
-                  Logger.log("Initial button injection failed, setting up observers");
+                  Logger.log(
+                    "Initial button injection failed, setting up observers"
+                  );
 
                   const documentObserver = new MutationObserver(() => {
-                    const target = document.querySelector(selectors.messageActions);
-                    if (target && !target.querySelector(`#${UI_IDS.importButton}`)) {
+                    const target = document.querySelector(
+                      selectors.messageActions
+                    );
+                    if (
+                      target &&
+                      !target.querySelector(`#${UI_IDS.importButton}`)
+                    ) {
                       UIManager.injectImportButton()
                         .then((success) => {
                           if (success) {
@@ -1547,7 +1617,6 @@ Return the response in this exact JSON format:
         .catch((err) => {
           Logger.error("Failed to initialize:", err);
         });
-
     } catch (error) {
       Logger.error("Failed to initialize:", error);
     }
