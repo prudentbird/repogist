@@ -14,7 +14,7 @@ A userscript that enhances [T3 Chat](https://t3.chat) by providing GitHub reposi
 ## Demo
 
 <video width="800" controls autoplay muted>
-  <source src="repogist-demo.mp4" type="video/mp4">
+  <source src="https://raw.githubusercontent.com/prudentbird/repogist/dev/repogist-demo.mp4" type="video/mp4">
   Your browser does not support the video tag.
 </video>
 
