@@ -12,11 +12,7 @@ A userscript that enhances [T3 Chat](https://t3.chat) by providing GitHub reposi
 - Secure API key management
 
 ## Demo
-
-<video width="800" controls autoplay muted>
-  <source src="repogist-demo.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
+https://github.com/user-attachments/assets/268dedb6-4b6a-4bc2-a0cc-997bb249e32f
 
 ## Prerequisites
 
