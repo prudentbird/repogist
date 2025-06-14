@@ -11,6 +11,13 @@ A userscript that enhances [T3 Chat](https://t3.chat) by providing GitHub reposi
 - Debug mode for troubleshooting
 - Secure API key management
 
+## Demo
+
+<video width="800" controls autoplay muted>
+  <source src="repogist-demo.mp4" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
+
 ## Prerequisites
 
 - [Tampermonkey](https://www.tampermonkey.net/) browser extension
